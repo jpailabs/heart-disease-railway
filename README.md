@@ -6,9 +6,12 @@ This is the public cloud deployment of the heart disease classifier from the mai
 
 | | |
 |---|---|
-| Live app | `https://<your-app>.up.railway.app` (add after the first deploy) |
+| Live app | **https://heart.jpailabs.tech** (Railway, custom domain via Hostinger DNS, HTTPS by Let's Encrypt) |
+| API docs | https://heart.jpailabs.tech/docs |
 | Model | Logistic Regression (full sklearn pipeline): CV ROC-AUC 0.908, test ROC-AUC 0.959 |
 | Stack | FastAPI · scikit-learn · Docker · Railway · GitHub Actions |
+
+![Web UI](docs/web-ui.png)
 
 ## What's included
 
@@ -68,6 +71,19 @@ There are no required environment variables. These are optional:
 | `DECISION_THRESHOLD` | `0.5` | probability cut-off for the disease class |
 | `LOG_LEVEL` | `INFO` | log level for the JSON request logs (shown in Railway's log viewer) |
 
+## Custom domain (heart.jpailabs.tech)
+
+The app is served on a subdomain of `jpailabs.tech`, whose DNS is hosted at Hostinger. These two records were added in hPanel → DNS records:
+
+| Type | Name | Content |
+|---|---|---|
+| CNAME | `heart` | `<railway-target>.up.railway.app` (from Railway → Settings → Networking → Custom Domain) |
+| TXT | `_railway-verify.heart` | `railway-verify=…` (domain ownership token from Railway) |
+
+The root domain can't take a CNAME, and Hostinger DNS has no ALIAS or CNAME-flattening option, so the app uses a subdomain. Railway issues and renews the TLS certificate automatically.
+
+![Live API checks](docs/live-api-checks.png)
+
 ## Run locally
 
 ```bash
@@ -97,7 +113,7 @@ docker run -e PORT=9000 -p 9000:9000 heart-railway     # http://localhost:9000
 | GET | `/docs` | Swagger UI |
 
 ```bash
-curl -X POST https://<your-app>.up.railway.app/predict \
+curl -X POST https://heart.jpailabs.tech/predict \
      -H 'content-type: application/json' -d @sample_request.json
 ```
 
