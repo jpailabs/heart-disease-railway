@@ -1,0 +1,51 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  lint-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+      - name: Install dependencies
+        run: |
+          pip install -r requirements.txt
+          pip install -e .
+      - name: Lint
+        run: flake8 src api tests scripts --count --show-source --statistics
+      - name: Unit tests
+        run: pytest --junitxml=test-reports/junit.xml --cov=src/heart --cov=api
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: test-reports
+          path: test-reports/
+
+  docker-smoke:
+    needs: lint-test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build image
+        run: docker build -t heart-railway:${{ github.sha }} .
+      - name: Run with a Railway-style PORT and smoke-test
+        run: |
+          docker run -d --name app -e PORT=9000 -p 9000:9000 heart-railway:${{ github.sha }}
+          for i in $(seq 1 30); do curl -sf localhost:9000/ready && break; sleep 2; done
+          curl -sf localhost:9000/ | grep -q "Heart Disease Risk Check"
+          curl -sf -X POST localhost:9000/predict -H 'content-type: application/json' \
+               -d @sample_request.json | tee prediction.json
+          python3 -c "import json;r=json.load(open('prediction.json'));assert r['prediction'] in (0,1)"
+          docker logs app

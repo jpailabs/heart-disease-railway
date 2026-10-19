@@ -1,0 +1,290 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Heart Disease Risk Check</title>
+<style>
+  :root {
+    --bg: #f6f7fb; --card: #ffffff; --ink: #1c2333; --muted: #5d6679; --line: #e3e6ee;
+    --accent: #2f5bd3; --accent-ink: #ffffff; --field: #fbfcfe;
+    --low: #1f8a5b; --mod: #c98a10; --high: #c8402f; --err: #b3261e; --err-bg: #fdecea;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #11141b; --card: #1a1f2a; --ink: #e8ebf2; --muted: #9aa3b5; --line: #2c3342;
+      --accent: #6d8ff0; --accent-ink: #0d1220; --field: #151a24;
+      --low: #3cc48a; --mod: #e5ad3a; --high: #f0715f; --err: #ff9a8f; --err-bg: #3a1d1b;
+    }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--ink);
+         font: 15px/1.5 -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
+  .wrap { max-width: 1080px; margin: 0 auto; padding: 28px 16px 48px; }
+  header h1 { margin: 0 0 4px; font-size: 26px; letter-spacing: -0.01em; }
+  header p { margin: 0; color: var(--muted); }
+  .grid { display: grid; grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr); gap: 20px; margin-top: 22px; }
+  @media (max-width: 860px) { .grid { grid-template-columns: 1fr; } }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 20px; }
+  .card h2 { margin: 0 0 14px; font-size: 16px; }
+  fieldset { border: 0; padding: 0; margin: 0 0 18px; }
+  legend { font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: .06em;
+           color: var(--muted); margin-bottom: 10px; }
+  .fields { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 12px 14px; }
+  label { display: block; font-size: 13px; font-weight: 600; margin-bottom: 4px; }
+  label small { font-weight: 400; color: var(--muted); }
+  input, select { width: 100%; padding: 9px 10px; border: 1px solid var(--line); border-radius: 8px;
+                  background: var(--field); color: var(--ink); font: inherit; }
+  input:focus, select:focus { outline: 2px solid var(--accent); outline-offset: 1px; border-color: transparent; }
+  input.bad, select.bad { border-color: var(--err); }
+  .hint { font-size: 12px; color: var(--muted); margin-top: 3px; }
+  .actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 6px; }
+  button { font: inherit; font-weight: 600; border-radius: 8px; padding: 10px 16px; cursor: pointer;
+           border: 1px solid var(--line); background: var(--card); color: var(--ink); }
+  button.primary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+  button:disabled { opacity: .6; cursor: progress; }
+  .result-empty { color: var(--muted); padding: 24px 0; text-align: center; }
+  .prob { font-size: 54px; font-weight: 700; line-height: 1; letter-spacing: -0.02em; }
+  .prob-label { color: var(--muted); font-size: 13px; margin-top: 6px; }
+  .verdict { display: inline-block; margin-top: 14px; padding: 4px 12px; border-radius: 999px;
+             font-weight: 700; font-size: 13px; color: #fff; }
+  .meter { position: relative; height: 12px; border-radius: 999px; margin: 18px 0 6px; overflow: hidden;
+           background: linear-gradient(90deg, var(--low) 0 30%, var(--mod) 30% 60%, var(--high) 60% 100%); opacity: .9; }
+  .needle { position: absolute; top: -4px; width: 4px; height: 20px; background: var(--ink); border-radius: 2px;
+            transform: translateX(-2px); transition: left .4s ease; }
+  .scale { display: flex; justify-content: space-between; font-size: 11px; color: var(--muted); }
+  dl { display: grid; grid-template-columns: auto 1fr; gap: 6px 14px; margin: 18px 0 0; font-size: 14px; }
+  dt { color: var(--muted); } dd { margin: 0; font-weight: 600; }
+  .error { background: var(--err-bg); color: var(--err); border-radius: 8px; padding: 10px 12px; font-size: 14px; margin-top: 12px; }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  th, td { text-align: left; padding: 6px 4px; border-bottom: 1px solid var(--line); }
+  th { color: var(--muted); font-weight: 600; }
+  .dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 6px; }
+  .note { font-size: 12px; color: var(--muted); margin-top: 16px; }
+  footer { margin-top: 26px; font-size: 13px; color: var(--muted); }
+  footer a { color: var(--accent); }
+  .stack { display: grid; gap: 20px; align-content: start; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>Heart Disease Risk Check</h1>
+    <p>Enter a patient's clinical measurements to estimate the probability of heart disease. The model is trained on the UCI Cleveland dataset.</p>
+  </header>
+
+  <div class="grid">
+    <form id="form" class="card" novalidate>
+      <h2>Patient details</h2>
+
+      <fieldset>
+        <legend>Demographics</legend>
+        <div class="fields">
+          <div><label for="age">Age <small>years</small></label>
+            <input id="age" name="age" type="number" min="1" max="120" step="1" required></div>
+          <div><label for="sex">Sex</label>
+            <select id="sex" name="sex" required>
+              <option value="1">Male</option><option value="0">Female</option></select></div>
+        </div>
+      </fieldset>
+
+      <fieldset>
+        <legend>Symptoms &amp; vitals</legend>
+        <div class="fields">
+          <div><label for="cp">Chest pain type</label>
+            <select id="cp" name="cp" required>
+              <option value="1">Typical angina</option><option value="2">Atypical angina</option>
+              <option value="3">Non-anginal pain</option><option value="4">Asymptomatic</option></select></div>
+          <div><label for="trestbps">Resting blood pressure <small>mm Hg</small></label>
+            <input id="trestbps" name="trestbps" type="number" min="51" max="259" step="1" required></div>
+          <div><label for="chol">Serum cholesterol <small>mg/dl</small></label>
+            <input id="chol" name="chol" type="number" min="81" max="699" step="1" required></div>
+          <div><label for="fbs">Fasting blood sugar &gt; 120 mg/dl</label>
+            <select id="fbs" name="fbs" required><option value="0">No</option><option value="1">Yes</option></select></div>
+        </div>
+      </fieldset>
+
+      <fieldset>
+        <legend>ECG &amp; exercise test</legend>
+        <div class="fields">
+          <div><label for="restecg">Resting ECG</label>
+            <select id="restecg" name="restecg" required>
+              <option value="0">Normal</option><option value="1">ST-T wave abnormality</option>
+              <option value="2">Left ventricular hypertrophy</option></select></div>
+          <div><label for="thalach">Max heart rate achieved <small>bpm</small></label>
+            <input id="thalach" name="thalach" type="number" min="51" max="249" step="1" required></div>
+          <div><label for="exang">Exercise-induced angina</label>
+            <select id="exang" name="exang" required><option value="0">No</option><option value="1">Yes</option></select></div>
+          <div><label for="oldpeak">ST depression (oldpeak)</label>
+            <input id="oldpeak" name="oldpeak" type="number" min="-3" max="10" step="0.1" required>
+            <div class="hint">induced by exercise, relative to rest</div></div>
+          <div><label for="slope">Slope of peak ST segment</label>
+            <select id="slope" name="slope" required>
+              <option value="1">Upsloping</option><option value="2">Flat</option><option value="3">Downsloping</option></select></div>
+        </div>
+      </fieldset>
+
+      <fieldset>
+        <legend>Imaging <small style="text-transform:none;letter-spacing:0">(optional - leave as Unknown if not available)</small></legend>
+        <div class="fields">
+          <div><label for="ca">Major vessels coloured by fluoroscopy</label>
+            <select id="ca" name="ca">
+              <option value="">Unknown</option><option value="0">0</option><option value="1">1</option>
+              <option value="2">2</option><option value="3">3</option></select></div>
+          <div><label for="thal">Thallium stress test</label>
+            <select id="thal" name="thal">
+              <option value="">Unknown</option><option value="3">Normal</option>
+              <option value="6">Fixed defect</option><option value="7">Reversible defect</option></select></div>
+        </div>
+      </fieldset>
+
+      <div class="actions">
+        <button type="submit" class="primary" id="submit">Predict risk</button>
+        <button type="button" data-preset="high">Fill high-risk example</button>
+        <button type="button" data-preset="low">Fill low-risk example</button>
+        <button type="reset">Clear</button>
+      </div>
+      <div id="error" class="error" hidden></div>
+    </form>
+
+    <div class="stack">
+      <section class="card" aria-live="polite">
+        <h2>Prediction</h2>
+        <div id="empty" class="result-empty">Fill in the form and press <b>Predict risk</b>.</div>
+        <div id="result" hidden>
+          <div class="prob" id="prob">-</div>
+          <div class="prob-label">estimated probability of heart disease</div>
+          <div class="meter"><div class="needle" id="needle" style="left:0%"></div></div>
+          <div class="scale"><span>0%</span><span>low &lt; 30%</span><span>moderate</span><span>high &ge; 60%</span><span>100%</span></div>
+          <span class="verdict" id="verdict">-</span>
+          <dl>
+            <dt>Predicted class</dt><dd id="label">-</dd>
+            <dt>Confidence</dt><dd id="confidence">-</dd>
+            <dt>Risk band</dt><dd id="band">-</dd>
+            <dt>Model</dt><dd id="model">-</dd>
+          </dl>
+        </div>
+        <p class="note">For educational use only (MLOps coursework). This is not a medical diagnosis.</p>
+      </section>
+
+      <section class="card">
+        <h2>This session</h2>
+        <div id="history-empty" class="result-empty" style="padding:8px 0">No predictions yet.</div>
+        <table id="history" hidden>
+          <thead><tr><th>Time</th><th>Age/Sex</th><th>Probability</th><th>Band</th></tr></thead>
+          <tbody></tbody>
+        </table>
+      </section>
+    </div>
+  </div>
+
+  <footer>
+    <a href="/docs">API docs</a> · <a href="/model-info">Model info</a> · <a href="/metrics">Metrics</a> · <a href="/health">Health</a>
+    <span id="model-line"></span>
+  </footer>
+</div>
+
+<script>
+const PRESETS = {
+  high: {age: 62, sex: 1, cp: 4, trestbps: 150, chol: 270, fbs: 0, restecg: 2, thalach: 115,
+         exang: 1, oldpeak: 2.6, slope: 2, ca: 2, thal: 7},
+  low:  {age: 41, sex: 0, cp: 2, trestbps: 130, chol: 204, fbs: 0, restecg: 2, thalach: 172,
+         exang: 0, oldpeak: 1.4, slope: 1, ca: 0, thal: 3},
+};
+const INTS = ["age", "sex", "cp", "fbs", "restecg", "exang", "slope", "ca", "thal"];
+const BAND_COLOR = {low: "var(--low)", moderate: "var(--mod)", high: "var(--high)"};
+const form = document.getElementById("form");
+const $ = id => document.getElementById(id);
+const history = [];
+
+function fill(values) {
+  for (const [k, v] of Object.entries(values)) form.elements[k].value = v ?? "";
+  clearErrors();
+}
+
+function clearErrors() {
+  $("error").hidden = true;
+  form.querySelectorAll(".bad").forEach(el => el.classList.remove("bad"));
+}
+
+function payload() {
+  const out = {};
+  for (const el of form.querySelectorAll("input, select")) {
+    const raw = el.value.trim();
+    if (raw === "") { out[el.name] = null; continue; }
+    out[el.name] = INTS.includes(el.name) ? parseInt(raw, 10) : parseFloat(raw);
+  }
+  return out;
+}
+
+function validate() {
+  let ok = true;
+  for (const el of form.querySelectorAll("input")) {
+    const bad = !el.checkValidity() || el.value.trim() === "";
+    el.classList.toggle("bad", bad);
+    if (bad) ok = false;
+  }
+  return ok;
+}
+
+function showError(msg) { $("error").textContent = msg; $("error").hidden = false; }
+
+function render(res, input) {
+  const pct = res.probability_disease * 100;
+  $("empty").hidden = true; $("result").hidden = false;
+  $("prob").textContent = pct.toFixed(1) + "%";
+  $("prob").style.color = BAND_COLOR[res.risk_band];
+  $("needle").style.left = Math.min(Math.max(pct, 0), 100) + "%";
+  $("verdict").textContent = res.prediction ? "Heart disease likely" : "Heart disease unlikely";
+  $("verdict").style.background = BAND_COLOR[res.risk_band];
+  $("label").textContent = res.label === "disease" ? "Disease (1)" : "No disease (0)";
+  $("confidence").textContent = (res.confidence * 100).toFixed(1) + "%";
+  $("band").textContent = res.risk_band;
+  $("model").textContent = `${res.model_name} v${res.model_version}`;
+
+  history.unshift({t: new Date(), input, res});
+  const rows = history.slice(0, 8).map(h => `<tr>
+      <td>${h.t.toLocaleTimeString([], {hour: "2-digit", minute: "2-digit", second: "2-digit"})}</td>
+      <td>${h.input.age} / ${h.input.sex ? "M" : "F"}</td>
+      <td>${(h.res.probability_disease * 100).toFixed(1)}%</td>
+      <td><span class="dot" style="background:${BAND_COLOR[h.res.risk_band]}"></span>${h.res.risk_band}</td></tr>`);
+  $("history").tBodies[0].innerHTML = rows.join("");
+  $("history").hidden = false; $("history-empty").hidden = true;
+}
+
+form.addEventListener("submit", async e => {
+  e.preventDefault();
+  clearErrors();
+  if (!validate()) { showError("Please check the highlighted fields - a value is missing or out of range."); return; }
+  const input = payload();
+  $("submit").disabled = true; $("submit").textContent = "Predicting...";
+  try {
+    const r = await fetch("/predict", {method: "POST", headers: {"content-type": "application/json"},
+                                       body: JSON.stringify(input)});
+    const body = await r.json();
+    if (!r.ok) {
+      const detail = Array.isArray(body.detail)
+        ? body.detail.map(d => `${d.loc[d.loc.length - 1]}: ${d.msg}`).join("; ")
+        : (body.detail || r.statusText);
+      showError("The API rejected the input - " + detail);
+      return;
+    }
+    render(body, input);
+  } catch (err) {
+    showError("Could not reach the prediction service: " + err.message);
+  } finally {
+    $("submit").disabled = false; $("submit").textContent = "Predict risk";
+  }
+});
+
+form.addEventListener("reset", () => setTimeout(clearErrors));
+document.querySelectorAll("[data-preset]").forEach(b =>
+  b.addEventListener("click", () => fill(PRESETS[b.dataset.preset])));
+
+fetch("/model-info").then(r => r.ok ? r.json() : null).then(m => {
+  if (m) $("model-line").textContent =
+    ` · model: ${m.model_name} (test ROC-AUC ${m.metrics.test_roc_auc}, trained ${m.trained_at.slice(0, 10)})`;
+}).catch(() => {});
+</script>
+</body>
+</html>
